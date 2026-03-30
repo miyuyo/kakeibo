@@ -1048,6 +1048,10 @@ function loadLastMonth() {
   return localStorage.getItem('kakeibo_lastmonth') || currentMonth();
 }
 function fmt(n) { return '¥' + Math.abs(Math.round(n)).toLocaleString(); }
+function fmtSigned(n) {
+  const abs = '¥' + Math.abs(Math.round(n)).toLocaleString();
+  return n < 0 ? '-' + abs : abs;
+}
 function today() { return new Date().toISOString().slice(0,10); }
 const PAYDAY = 25; // 給料日（この日からが新しい月）
 
@@ -1719,7 +1723,9 @@ function parseDebitCSV(text) {
     const amtStr = (row[amtCol] || '').replace(/[,，¥￥\s\r]/g, '');
     const amount = Math.round(Math.abs(parseFloat(amtStr) || 0));
     if (amount === 0) continue;
-    csvParsed.push({ date, desc, amount, category: autoCategory(desc) });
+    // 振替キーワード自動検出
+    const isTransfer = /振込|振替|transfer|ATM|引き落とし|自動振替/i.test(desc);
+    csvParsed.push({ date, desc, amount, category: autoCategory(desc), type: isTransfer ? 'transfer' : 'expense' });
   }
 
   setStatus(`✅ ${csvParsed.length}件を検出しました（インポート実行で取り込まれます）`);
@@ -1746,21 +1752,33 @@ function renderCSVPreviewTable() {
     : `<table>
         <thead><tr>
           <th>日付</th><th>内容</th>
+          <th>種別</th>
           <th>カテゴリ <span style="font-weight:400;font-size:10px;color:var(--text3);">（変更可）</span></th>
           <th style="text-align:right">金額</th>
         </tr></thead>
         <tbody>${csvParsed.map((r,i) => {
           const color = catColor(r.category||'その他');
+          const typeLabel = r.type==='transfer'?'🔄 振替':r.type==='income'?'💰 収入':'💸 支出';
+          const typeColor = r.type==='transfer'?'var(--purple)':r.type==='income'?'var(--green)':'var(--red)';
           return `<tr>
             <td style="font-size:11px;color:var(--text2);white-space:nowrap">${r.date}</td>
-            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc}">${r.desc}</td>
+            <td style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc}">${r.desc}</td>
             <td>
-              <select class="cat-inline-select" style="display:inline-block;position:static;box-shadow:none;min-width:120px;border:1px solid ${color}40;border-radius:20px;background:${color}15;color:${color};font-size:11px;font-weight:600;padding:3px 8px;"
-                onchange="csvParsed[${i}].category=this.value;updateCatSelectColor(this)">
-                ${catOptHtml.replace(`value="${r.category||'その他'}"`,`value="${r.category||'その他'}" selected`)}
+              <select style="border:none;background:transparent;font-size:11px;font-weight:600;color:${typeColor};cursor:pointer;padding:2px 4px;"
+                onchange="csvParsed[${i}].type=this.value;renderCSVPreviewTable()">
+                <option value="expense" ${r.type==='expense'?'selected':''}>💸 支出</option>
+                <option value="income"  ${r.type==='income' ?'selected':''}>💰 収入</option>
+                <option value="transfer" ${r.type==='transfer'?'selected':''}>🔄 振替</option>
               </select>
             </td>
-            <td style="font-family:'DM Mono',monospace;text-align:right;font-size:12px;color:var(--red);white-space:nowrap">-${fmt(r.amount)}</td>
+            <td>
+              ${r.type==='transfer' ? '<span style="font-size:11px;color:var(--text3);">—</span>' :
+              `<select class="cat-inline-select" style="display:inline-block;position:static;box-shadow:none;min-width:110px;border:1px solid ${color}40;border-radius:20px;background:${color}15;color:${color};font-size:11px;font-weight:600;padding:3px 8px;"
+                onchange="csvParsed[${i}].category=this.value;updateCatSelectColor(this)">
+                ${catOptHtml.replace(\`value="${r.category||'その他'}"\`,\`value="${r.category||'その他'}" selected\`)}
+              </select>`}
+            </td>
+            <td style="font-family:'DM Mono',monospace;text-align:right;font-size:12px;color:${typeColor};white-space:nowrap">${r.type==='income'?'+':''}${r.type==='income'?'':r.type==='transfer'?'':'-'}${fmt(r.amount)}</td>
           </tr>`;
         }).join('')}
         ${csvParsed.length > 50 ? `<tr><td colspan="4" style="text-align:center;color:var(--text2);font-size:12px;padding:8px">全${csvParsed.length}件</td></tr>` : ''}
@@ -1785,14 +1803,15 @@ function importCSV() {
   }
 
   for (const row of csvParsed) {
+    const rowType = row.type || type; // 行ごとの種別優先
     const txn = {
       id: ++state.nextId,
       date: row.date,
       amount: row.amount,
       desc: row.desc,
-      type,
+      type: rowType,
     };
-    if (type === 'transfer') {
+    if (rowType === 'transfer') {
       txn.fromAccountId = accId;
       txn.toAccountId   = toAccId;
     } else {
@@ -1812,10 +1831,14 @@ function importCSV() {
 // ════════════ TRENDS ════════════
 function getMonthRange(n) {
   const months = [];
-  const now = new Date();
+  // 現在の給与月を基準にする
+  const base = currentMonth(); // YYYY-MM
+  const [baseY, baseM] = base.split('-').map(Number);
   for (let i = n-1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    months.push(d.toISOString().slice(0,7));
+    let m = baseM - i;
+    let y = baseY;
+    while (m <= 0) { m += 12; y--; }
+    months.push(`${y}-${String(m).padStart(2,'0')}`);
   }
   return months;
 }

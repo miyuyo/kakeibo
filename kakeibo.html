@@ -1200,7 +1200,7 @@ function toggleCSVTransferTo() {
 }
 
 function populateAccountSelects() {
-  ['add-account','add-to-account','tr-from','tr-to','col-account','txn-account-filter'].forEach(id => {
+  ['add-account','add-to-account','tr-from','tr-to','col-account','col-to-account','txn-account-filter'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     const prev = el.value;
     el.innerHTML = id==='txn-account-filter' ? '<option value="">すべての口座</option>' : '';
@@ -1314,11 +1314,11 @@ function renderDashboard() {
         <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);">
           <span style="width:10px;height:10px;border-radius:50%;background:${accColor(i)};display:inline-block;flex-shrink:0;"></span>${a.name}
         </span>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:500;">${fmt(b)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:${b<0?'var(--red)':'inherit'}">${fmtSigned(b)}</span>
       </div>`;
     }).join('')+
     `<div style="display:flex;justify-content:space-between;padding:11px 0;font-weight:700;font-size:13px;">
-      <span>合計</span><span style="font-family:'DM Mono',monospace;color:var(--accent);">${fmt(totalBalance())}</span>
+      <span>合計</span><span style="font-family:'DM Mono',monospace;color:${totalBalance()<0?'var(--red)':'var(--accent)'};">${fmtSigned(totalBalance())}</span>
     </div>`;
 
   const recent=txns.slice(0,10);

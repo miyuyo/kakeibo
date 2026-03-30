@@ -1775,7 +1775,7 @@ function renderCSVPreviewTable() {
               ${r.type==='transfer' ? '<span style="font-size:11px;color:var(--text3);">—</span>' :
               `<select class="cat-inline-select" style="display:inline-block;position:static;box-shadow:none;min-width:110px;border:1px solid ${color}40;border-radius:20px;background:${color}15;color:${color};font-size:11px;font-weight:600;padding:3px 8px;"
                 onchange="csvParsed[${i}].category=this.value;updateCatSelectColor(this)">
-                ${catOptHtml.replace(\`value="${r.category||'その他'}"\`,\`value="${r.category||'その他'}" selected\`)}
+                ${catOptHtml.replace('value="'+(r.category||'その他')+'"', 'value="'+(r.category||'その他')+'" selected')}
               </select>`}
             </td>
             <td style="font-family:'DM Mono',monospace;text-align:right;font-size:12px;color:${typeColor};white-space:nowrap">${r.type==='income'?'+':''}${r.type==='income'?'':r.type==='transfer'?'':'-'}${fmt(r.amount)}</td>

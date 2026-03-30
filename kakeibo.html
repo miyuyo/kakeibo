@@ -635,6 +635,18 @@
             <label>取込先口座</label>
             <select class="form-control" id="col-account"></select>
           </div>
+          <div class="form-group">
+            <label>種別</label>
+            <select class="form-control" id="col-type" onchange="toggleCSVTransferTo()">
+              <option value="expense">💸 支出</option>
+              <option value="income">💰 収入</option>
+              <option value="transfer">🔄 振替</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="csv-transfer-to-wrap" style="display:none;margin-bottom:14px;">
+          <label>振替先口座</label>
+          <select class="form-control" id="col-to-account"></select>
         </div>
 
         <!-- Debug/status -->
@@ -1082,7 +1094,7 @@ function accColor(i) { return ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]; }
 function accountBalance(id) {
   const acc = state.accounts.find(a => a.id === id);
   if (!acc) return 0;
-  let b = acc.initialBalance;
+  let b = acc.initialBalance || 0;
   for (const t of state.transactions) {
     if (t.type === 'income' && t.accountId === id) b += t.amount;
     if (t.type === 'expense' && t.accountId === id) b -= t.amount;
@@ -1175,6 +1187,12 @@ function toggleTransferFields() {
   document.getElementById('add-to-account-group').style.display = isTr?'':'none';
   document.getElementById('add-category-group').style.display = isTr?'none':'';
   if (!isTr) populateCategorySelect();
+}
+
+function toggleCSVTransferTo() {
+  const type = document.getElementById('col-type')?.value;
+  const wrap = document.getElementById('csv-transfer-to-wrap');
+  if (wrap) wrap.style.display = type === 'transfer' ? '' : 'none';
 }
 
 function populateAccountSelects() {
@@ -1758,17 +1776,30 @@ function updateCatSelectColor(sel) {
 
 function importCSV() {
   if (csvParsed.length === 0) { showToast('取込データがありません', 'error'); return; }
-  const accId = parseInt(document.getElementById('col-account').value);
+  const accId   = parseInt(document.getElementById('col-account').value);
+  const type    = document.getElementById('col-type')?.value || 'expense';
+  const toAccId = parseInt(document.getElementById('col-to-account')?.value || '0');
+
+  if (type === 'transfer' && accId === toAccId) {
+    showToast('振替元と振替先が同じです', 'error'); return;
+  }
+
   for (const row of csvParsed) {
-    state.transactions.push({
+    const txn = {
       id: ++state.nextId,
       date: row.date,
       amount: row.amount,
       desc: row.desc,
-      type: 'expense',
-      accountId: accId,
-      category: row.category || 'その他'
-    });
+      type,
+    };
+    if (type === 'transfer') {
+      txn.fromAccountId = accId;
+      txn.toAccountId   = toAccId;
+    } else {
+      txn.accountId = accId;
+      txn.category  = row.category || 'その他';
+    }
+    state.transactions.push(txn);
   }
   state.transactions.sort((a, b) => b.date.localeCompare(a.date));
   save();

@@ -1849,7 +1849,8 @@ function renderTrends() {
 
   // Populate month selector for cat chart
   const sel = document.getElementById('trend-cat-month');
-  sel.innerHTML = [...months].reverse().map(m=>`<option value="${m}">${m}</option>`).join('');
+  const cur = currentMonth();
+  sel.innerHTML = [...months].reverse().map(m=>`<option value="${m}" ${m===cur?'selected':''}>${m}</option>`).join('');
   renderTrendCat();
 
   // Compute per-month income/expense/balance

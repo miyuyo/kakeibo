@@ -1062,10 +1062,12 @@ const PAYDAY = 25; // 給料日（この日からが新しい月）
 function currentMonth() {
   const now = new Date();
   // 25日以降なら今月、24日以前なら先月が給与月
-  const payMonth = now.getDate() >= PAYDAY
-    ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return payMonth.toISOString().slice(0, 7);
+  // toISOString()はUTC変換でタイムゾーンズレが起きるので使わない
+  let y = now.getFullYear();
+  let m = now.getMonth(); // 0-indexed
+  if (now.getDate() < PAYDAY) m -= 1;
+  if (m < 0) { m = 11; y -= 1; }
+  return `${y}-${String(m + 1).padStart(2,'0')}`;
 }
 
 // 「給与月」文字列(YYYY-MM) から実際の日付範囲を返す
